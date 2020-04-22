@@ -7,33 +7,7 @@ from Bio import pairwise2, SeqIO
 
 
 
-seqFile = str(raw_input('Copy and paste your DNA search string here: '))
 
-
-inputTarget = raw_input("For target site enter 'a' for alpha-tubulin, \n \
-'b' for acetolactate synthase, \n \
-'c' for acetylcoa carboxylase, \n \
-'d' for protoporphyrinogen oxidase, \n \
-'e' for epsp synthase, \n \
-'f' for psbA PSII D1 protein. \n \
-Enter a selection: ")
-
-if inputTarget == 'a':
-    target = 'alpha-tubulin'
-elif inputTarget == 'b':
-    target = 'ALS'
-elif inputTarget == 'c':
-    target = 'ACCase'
-elif inputTarget == 'd':
-    target = 'PPO'
-elif inputTarget == 'e':
-    target = 'EPSP'
-elif inputTarget == 'f':
-    target = 'psbA'
-else:
-    print "Error entering target site, must enter a, b, c, d or e"
-    sys.exit(1)
-    
 
 class resistanceMutationSearch(object):
     
@@ -55,7 +29,7 @@ class resistanceMutationSearch(object):
         self.compProt (string of comparison Prot for alignments)
         These items will be used in subsequent functions to find mutations.
         '''
-        if self.targetSite == 'ALS':
+        if self.targetSite in ['ALS', 'als']:
             self.segments = ['MVVQ', 'ELDQQ', 'PENES', 'GGASM', 'QVPR', 'TDAF','FDDR','QWED', 'PSGG', 'GLPL']
             self.susSegments = ['GGASM', 'QVPR', 'TDAF','FDDR','QWED', 'PSGG']
             self.resSegments = {'GGASM':'GG\wSM','QVPR':'QV\wR','TDAF':'TD\wF', 'FDDR':'FD\wR',"QWED":"Q\wED", 'PSGG':'P\w\wG'}
@@ -168,11 +142,11 @@ FHMLGVAGVFGGSLFSAMHGSLVTSSLIRETTENESANEGYRFGQEEETYNIVAAHGY\
 FGRLIFQYASFNNSRSLHFFLAAWPVIGIWFTALGISTMAFNLNGFNFNQSVVDSQGR\
 VINTWADIINRANLGMEVMHERNAHNFPLDLAAIEAPSTNG'
             self.testAccession = 'K01200'
-        if self.targetSite == "EPSPS":
+        if self.targetSite in ["EPSPS", "epsps"]:
             self.segments = ['KEEVQ', 'TAAGG', 'MRPL', 'LGNAG' ]
             self.susSegments = ['MRPL', 'LGNAG']
             self.resSegments = {'MRPL':'MR\wL', 'LGNAG':'LGNA\w'}
-            self.mutName - {'MRPL': "Pro-106 position", "LGNAG": 'Gly-101 position'}
+            self.mutName = {'MRPL': "Pro-106 position", "LGNAG": 'Gly-101 position'}
             self.compDNA = 'GCGGAGGAGGTGGTGCTGCAGCCCATCAAGGAGATCTCCGGCGTCGTGAAGCTGCCGGGGTCCAAGTCGC\
 TCTCCAACCGGATCCTCCTGCTCTCCGCCCTCGCCGAGGTAAGAAGAAGGATCCCCCCTCCCTTTCAGAG\
 TCAATTGAAATTGGATGTGGAGATGAGATTTTACCAGGGGTTAGGTGATGATTTCCTGCTGCTGAAATGT\
@@ -228,7 +202,7 @@ LAVVALFADGPTAIRDVASWRVKETERMVAIRTELTKLGASVEEGPDYCIITPPEKLN\
 VTAIDTYDDHRMAMAFSLAACADVPVTIRDPGCTRKTFPDYFDVLSTFVKN"
             #change MRSL to MRPL for non-resistant standard
             self.testAccession = 'JN004269'#Contains a S-106 mutation so changed to P
-        if self.targetSite == "alpha-tubulin" :
+        if self.targetSite in [ "alpha-tubulin" ,"tua" ]:
             self.segments = ['NEFQT', 'SLTAS', 'HFMLS', 'SAEKA', 'DVNEF']
             self.susSegments = ['SLTAS', 'HFMLS']
             self.resSegments = {'SLTAS': 'SL\wAS', 'HFMLS': 'HF\wLS'} #Thr-239-Ile, Met-268-Thr, Leu-136-Phe
@@ -267,7 +241,7 @@ SAEKAYHEQLSVAEITNSAFEPSSMMAKCDPRHGKYMACCLMYRGDVVPKDVNAAVAT\
 IKTKRTIQFVDWCPTGFKCGINYQPPSVVPGGDLAKVQRAVCMISNSTSVVEVFSRID\
 HKFDLMYAKRAFVHWYVGEGMEEGEFSEAREDLAALEKDYEEVGAEFDEGEEGDEGDEY'
             self.testAccession = 'AF008120'
-        if self.targetSite == "PPO": #G210 deletion, R98G, R98M
+        if self.targetSite in ["PPO","ppo"]: #G210 deletion, R98G, R98M
             self.segments = ['VAGTCGGDP', 'QNKRYI', 'VSTKN', 'KLKSHG', 'TFPEV', 'GGENAS', 'TAPIRN']
             self.susSegments = ['GTCGGDP', 'QNKRYI']
             self.resSegments = {'GTCGGDP':'GTC\w?GDP', 'QNKRYI': 'QNK\wYI'} 
@@ -332,10 +306,14 @@ SGCKAAELVISYLDSHIYVKMDEKTA'
         '''Determine if a specific mutation is present in the the selected
         protein string.  Return DICTIONARY of mutations found and a DICTIONARY 
         of Normal Segments and Mutant Segments
+
+
         '''
         mutationsPresent = {}
         specificMutations = {}
+        specificAaSubstition = {}
         for seg in self.susSegments:
+            aaSubs = []
             if seg in self.prot:
                 mutationsPresent[seg]="No Mutation Present"
             elif re.search(self.resSegments[seg], self.prot):
@@ -345,11 +323,23 @@ SGCKAAELVISYLDSHIYVKMDEKTA'
                 end = len(seg)+start
                 mutant = self.prot[start:end]
                 specificMutations[seg] = mutant
+                # now get the substition IDS
+                # we often want the actual AA substition for any given
+                # TSR. This loop is written to be expandable, so that
+                # more than 1 AA substition can be reported per match.
+                # It should, in theory, make the search process more
+                # flexible. (NDH)
+                for ref,mu in zip(seg,mutant):
+                    if ref != mu:
+                        aaSubs.append([ref,mu])
+
+                specificAaSubstition[seg] = aaSubs
             else:
                 mutationsPresent[seg]="SNP not in sequence range"
                 
         self.mutationsPresent = mutationsPresent
         self.specificMutations = specificMutations
+        self.specificAaSubstitions = specificAaSubstition
                 
 
     def translateIndividualSeq(self, sequence, start):
@@ -411,23 +401,83 @@ def mutationFinder(seq, targ):
     
     seq.idCorrectProtein()
     if seq.prot != None:
-        print seq.prot
+        #print( seq.prot)
         seq.detectMutations()
-        print seq.mutationsPresent
-        print seq.specificMutations
+        #print( seq.mutationsPresent)
+        #print( seq.specificMutations)
         for mut in seq.mutationsPresent:
             if seq.mutationsPresent[mut] == "Mutation Present":
-                print "There is an amino acid change at "+ seq.mutName[mut] + "."
+                print( "There is an amino acid change at "+ seq.mutName[mut] + ".")
             elif seq.mutationsPresent[mut] == "No Mutation Present":
-                print "No amino acid change detected at "+ seq.mutName[mut] + "."
+                pass
+                #print( "No amino acid change detected at "+ seq.mutName[mut] + ".")
         seq.alignSequences()
-        print seq.protAlignment
-        print seq.ntAlignment
+        #print( seq.protAlignment)
+        #print( seq.ntAlignment)
         
     else:
-        print "Unable to translate sequence. Make sure sequence quality is good \n \
-        and check to see if you entered the correct target."
-        print "Target site selected: " + seq.targetSite
+        print( "Unable to translate sequence. Make sure sequence quality is good \n \
+        and check to see if you entered the correct target." )
+        print( "Target site selected: " + seq.targetSite )
+
+
+def batchMutationFinder(seq, targ):
+
+
+    res_muts = []
+    seq = resistanceMutationSearch(seq, targ)
+    seq.determineTarget()
+
+    seq.idCorrectProtein()
+    if seq.prot != None:
+        seq.detectMutations()
+        for mut in seq.mutationsPresent:
+            if seq.mutationsPresent[mut] == "Mutation Present":
+                res_muts.append( seq.mutName[mut])
+                print(seq.specificAaSubstitions[mut])
+
+    return res_muts
+
+
+
+def script_inputs():
+    """
+    Moved functional inputs here so that they only activate when we run this file as a
+    a script. Otherwise it gums up the import.
+    NDH Feb28
+    """
+
+    seqFile = str(raw_input('Copy and paste your DNA search string here: '))
+
+    inputTarget = raw_input("For target site enter 'a' for alpha-tubulin, \n \
+    'b' for acetolactate synthase, \n \
+    'c' for acetylcoa carboxylase, \n \
+    'd' for protoporphyrinogen oxidase, \n \
+    'e' for epsp synthase, \n \
+    'f' for psbA PSII D1 protein. \n \
+    Enter a selection: ")
+
+    if inputTarget == 'a':
+        target = 'alpha-tubulin'
+    elif inputTarget == 'b':
+        target = 'ALS'
+    elif inputTarget == 'c':
+        target = 'ACCase'
+    elif inputTarget == 'd':
+        target = 'PPO'
+    elif inputTarget == 'e':
+        target = 'EPSP'
+    elif inputTarget == 'f':
+        target = 'psbA'
+    else:
+        print("Error entering target site, must enter a, b, c, d or e")
+        sys.exit(1)
+
+    mutationFinder(seqFile, target)
 
 if __name__ == '__main__':
-    mutationFinder(seqFile, target)
+    #script_inputs()
+    epsps_mut= """ 
+GCGGTGCTCGCCACGTCCGTGGCGGCGCCCGCCGCGCCGGCCGGCGCGGAGGAGATCCTGCTGCAGCCCATCCGGGAGATCTCCGGCGCCGTGCAGCTGCCGGGGTCCAAGTCGCTGTCTAACCGGATCCTCCTCCTCTCCGCCTTGTCCGAGGGAACAACTGTGGTTGATAACCTGTTGAACAGTGAGGATGTCCACTACATGCTCGAGGCCCTGGACGCTCTCGGCCTCTCCGTGGAAGCAGACAAAGTTGCAAAAAGAGCTGTAGTTGTTGGCTGTGGCGGCAGGTTCCCGGTTGAAAAGGATGCCAAAGAGGAAGTGCAGCTCTTCTTGGGGAACGCTGGAACTGCGATGCGGGCACTGACAGCGGCTGTAGTAGCTGCTGGTGGAAATGCAACATATGTTCTTGATGGAGTACCAAGAATGAGGGAGCGACCCATTGGTGACTTAGTTGTCGGTTTGAAACAACTCGGTGCCGACGTCGATTGTTTCCTTGGCACTAACTGCCCACCTGTTCGTATCAACGGCATTGGAGGGCTACCTGGTGGCAAGGTCAAGCTGTCTGGTTCCATCAGCAGTCAATACTTGAGTTCCTTGCTGATGGCTGCTCCTTTGGCTCTTGGAGATGTCGAGATTGAAATCATTGATAAACTAATCTCTGTACCTTACGTTGAAATGACACTGAGATTGATGGAGCGTTTTGGCGTGAAGGCAGAGCATTCTGATAGCTGGGACAGGTTCTACATTAAAGGAGGGCAGAAGTACAAGTCCCCTGGAAATGCCTATGTCGAAGGTGATGCGTCAAGTGCGAGCTATTTCTTGGCTGGCGCTGCAATCACTGGAGGAACTGTGACTGTCCAAGGTTGTGGAACCACCAGTTTGCAGGGTGATGTGAAATTTGCTGAGGTACTTGAAATGATGGGAGCAAAGGTCACATGGACCGACACTAGTGTAACTGTTACCGGTCCATCGCGTCAGCCCTTTGGAAGGAAACACCTAAAAGCTGTTGATGTCAACATGAACAAAATGCCTGATGTTGCTATGACTCTTGCTGTTGTTGCCCTCTTTGCCGATGGTCCAACTGCTATCAGAGATGTTGCCTCCTGGAGAGTGAAGGAAACCGAGAGAATGGTGGCCATTCGGACAGAGCTAACAAAGCTTGGAGCATCGGTAGAGGAAGGCCCAGACTATTGCATCATCACACCACCGGAGAAACTGAACATCACGGCGATCGACACCTATGATGACCACCGGATGGCGATGGCTTTCTCCTTGGCCGCCTGCGCCGAGGTGCCTGTCACGATCAGAGACCCTGGTTGCACCCGCAAGACCTTCCCCAACTACTTTGATGTGCTAAGCACTTTCGTGAAGAACTAGCCAGGAAATCTGCAGCGTACCGCGTATGTATTTTTGTCCAACAGTCTGAGGAATTTCTACTCTTTTGGTCTTCTCGCGAGATGATGTGTGAGTCTGTATTATTAGTTTATGTAGCATGGCATGGTGTTGAGGTAAAATGAGTTGTATTACACACTGAATTCTTTTTGAATAAGAATAAATCCATCCGCTGATCCAGATGCTGGAACACAGCTAGTTCTGCCAAATGCAAGTGATCATTGCAAGTTTGTAATGTTTAGTGCTTCCTTGAATCATCGTTAATATATGCTATGAAGCAAAAGATATCAGTGAGTAGATGGCAGCATATGTAACGTGTTCGAAACATTCTTGGTAAAAGATATGTATCAGC"""
+
+    batchMutationFinder(epsps_mut,'epsps')
